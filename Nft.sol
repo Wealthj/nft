@@ -20,18 +20,22 @@ contract Marketplace is ReentrancyGuard, Ownable, IERC721Receiver {
     IERC721 private NFT;
     IERC20 private ERC20Token;
 
-    uint256 private _mintPrice;
-    uint256 private _auctionDuration;
-    uint256 private _auctionMinimalBidAmount;
+    uint256 public _mintPrice;
+    uint256 public _auctionDuration;
+    uint256 public _auctionMinimalBidAmount;
 
     constructor(
-        uint256 newPrice,
-        uint256 newAuctionDuration,
-        uint256 newAuctionMinimalBidAmount
+        uint256 mintPrice,
+        uint256 auctionDuration,
+        uint256 auctionMinimalBidAmount,
+        address erc20Address,
+        address nftAddress
     ) {
-        setMintPrice(newPrice);
-        setAuctionDuration(newAuctionDuration);
-        setAuctionMinimalBidAmount(newAuctionMinimalBidAmount);
+        setMintPrice(mintPrice);
+        setAuctionDuration(auctionDuration);
+        setAuctionMinimalBidAmount(auctionMinimalBidAmount);
+        ERC20Token = IERC20(erc20Address);
+        NFT = IERC721(nftAddress);
     }
 
     mapping(uint256 => TokenStatus) private _idToItemStatus;
@@ -281,6 +285,59 @@ contract Marketplace is ReentrancyGuard, Ownable, IERC721Receiver {
         }
     }
 
+
+    /**
+     *@notice Withdraw ERC20 from a marketplace contract
+     *@param receiver beneficiary's address
+     *@param amount amount of funds sent
+     **/
+    function withdrawTokens(address receiver, uint256 amount)
+        external
+        onlyOwner
+    {
+        ERC20Token.transfer(receiver, amount);
+    }
+
+    /**
+     *@notice Set new NFT address
+     *@param newNFTAddress new NFT address for exchange
+     **/
+    function changeNFTAddress(address newNFTAddress) external onlyOwner {
+        emit NFTAddressChanged(address(NFT), newNFTAddress);
+        NFT = IERC721(newNFTAddress);
+    }
+
+    /**
+     *@notice Set new ERC20 address
+     *@param newToken new ERC20 address for exchange
+     **/
+    function changeERC20Token(address newToken) external onlyOwner {
+        emit ERC20AddressChanged(address(ERC20Token), newToken);
+        ERC20Token = IERC20(newToken);
+    }
+
+    function setMintPrice(uint256 _newPrice) public onlyOwner {
+        uint256 newPrice = _newPrice;
+        emit MintPriceUpgraded(_mintPrice, newPrice, block.timestamp);
+        _mintPrice = newPrice;
+    }
+
+    function setAuctionDuration(uint256 newAuctionDuration) public onlyOwner {
+        _auctionDuration = newAuctionDuration;
+        emit AuctionDurationUpgraded(newAuctionDuration, block.timestamp);
+    }
+
+    function setAuctionMinimalBidAmount(uint256 newAuctionMinimalBidAmount)
+        public
+        onlyOwner
+    {
+        _auctionMinimalBidAmount = newAuctionMinimalBidAmount;
+        emit AuctionMinimalBidAmountUpgraded(
+            newAuctionMinimalBidAmount,
+            block.timestamp
+        );
+    }
+
     /**
      *@notice Burn NFT
      *@param tokenId identifier NFT
@@ -299,39 +356,17 @@ contract Marketplace is ReentrancyGuard, Ownable, IERC721Receiver {
         emit Burned(tokenId, msg.sender, block.timestamp);
     }
 
-    /**
-     *@notice Withdraw ERC20 from a marketplace contract
-     *@param receiver beneficiary's address
-     *@param amount amount of funds sent
-     **/
-    function withdrawTokens(address receiver, uint256 amount)
-        external
-        onlyOwner
-    {
-        ERC20Token.transfer(receiver, amount);
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external override returns (bytes4) {
+        emit NFTReceived(operator, from, tokenId, data);
+        return IERC721Receiver.onERC721Received.selector;
     }
 
-    /**
-     *@notice Set new NFT address
-     *@param newNFTAddress new NFT address for exchange
-     **/
-    function setNFTAddress(address newNFTAddress) external onlyOwner {
-        emit NFTAddressChanged(address(NFT), newNFTAddress);
-        NFT = IERC721(newNFTAddress);
-    }
 
-    /**
-     *@notice Set new ERC20 address
-     *@param newToken new ERC20 address for exchange
-     **/
-    function setERC20Token(address newToken) external onlyOwner {
-        emit ERC20AddressChanged(address(ERC20Token), newToken);
-        ERC20Token = IERC20(newToken);
-    }
-
-    /**
-     *@notice Different get- or set- function
-     **/
     function getNFT() external view returns (address) {
         return address(NFT);
     }
@@ -358,49 +393,5 @@ contract Marketplace is ReentrancyGuard, Ownable, IERC721Receiver {
         returns (AuctionOrder memory)
     {
         return _idToAuctionOrder[tokenId];
-    }
-
-    function getMintPrice() external view returns (uint256) {
-        return _mintPrice;
-    }
-
-    function getAuctionMinimalBidAmount() external view returns (uint256) {
-        return _auctionMinimalBidAmount;
-    }
-
-    function getAuctionDuration() external view returns (uint256) {
-        return _auctionDuration;
-    }
-
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    ) external override returns (bytes4) {
-        emit NFTReceived(operator, from, tokenId, data);
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
-    function setAuctionMinimalBidAmount(uint256 newAuctionMinimalBidAmount)
-        public
-        onlyOwner
-    {
-        _auctionMinimalBidAmount = newAuctionMinimalBidAmount;
-        emit AuctionMinimalBidAmountUpgraded(
-            newAuctionMinimalBidAmount,
-            block.timestamp
-        );
-    }
-
-    function setMintPrice(uint256 _newPrice) public onlyOwner {
-        uint256 newPrice = _newPrice;
-        emit MintPriceUpgraded(_mintPrice, newPrice, block.timestamp);
-        _mintPrice = newPrice;
-    }
-
-    function setAuctionDuration(uint256 newAuctionDuration) public onlyOwner {
-        _auctionDuration = newAuctionDuration;
-        emit AuctionDurationUpgraded(newAuctionDuration, block.timestamp);
     }
 }
